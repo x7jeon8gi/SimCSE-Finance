@@ -11,26 +11,11 @@ from dataset import UnsupDataset
 from pathlib import Path
 import yaml
 import wandb
+from utils import load_args, load_yaml_param_settings, seed_everything
+
 os.environ["CUDA_VISIBLE_DEVICES"] = "0, 1, 2, 3"
 
-def get_root_dir():
-    return Path(__file__).parent.parent
 
-def load_args():
-    parser = ArgumentParser()
-    parser.add_argument('--config', type=str, help="Path to the config data  file.",
-                        default=get_root_dir().joinpath('SimCSE','configs', 'simcse_config.yaml'))
-    return parser.parse_args()
-
-def load_yaml_param_settings(yaml_fname: str):
-    """
-    :param yaml_fname: .yaml file that consists of hyper-parameter settings.
-    """
-    stream = open(yaml_fname, 'r')
-    config = yaml.load(stream, Loader=yaml.FullLoader)
-    return config
-
- 
 def train(config, train_data_loader, valid_data_loader, test_data_loader=None):
     
     project_name = 'SimCSE'
@@ -74,7 +59,9 @@ if __name__ == "__main__":
     
     args = load_args()
     config = load_yaml_param_settings(args.config)
-    # not seed everything..
+    
+    # need randomness -> no seed
+    # seed_everything(config['train']['seed'])
     
     dir = Path.cwd()
     
