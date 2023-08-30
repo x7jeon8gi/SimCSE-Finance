@@ -1,0 +1,23 @@
+data:
+  data_full_path: 'SimCSE/txt_pkl_v3/*.pkl'
+  split_day: 20210101
+
+transformer:
+  from_pretrained: 'snunlp/KR-FinBert'
+  hidden_size: 768
+  max_length: 256
+  
+train:
+  batch_size: 64
+  temperature: 0.05
+  learning_rate: 0.0001
+  warmup_steps: 300
+  epochs: 1
+  run_name : 'Fin_SimCSE_Unsupervised'
+  saving_path : './NLP_STUDY/SimCSE/res'
+  device: "cuda"
+  num_workers: 16
+  # accumulate_grad_batches: 4
+  precision: 16
+  valid_ratio: 0.2
+  gpu_counts: 4
