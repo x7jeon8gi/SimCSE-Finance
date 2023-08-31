@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from glob import glob
 import os
 from model import Fin_SimCSE
-from dataset import UnsupDataset
+from dataset import UnsupDataset , SupervisedDataset
 from pathlib import Path
 import yaml
 import wandb
@@ -65,11 +65,17 @@ if __name__ == "__main__":
     
     dir = Path.cwd()
     
-    train_dataset = UnsupDataset(mode='train', config=config)
-    #test_dataset = UnsupDataset(mode='test', config=config)
+    #* dataset supervised or unsupervised
+    if config['train']['supervision'] == False:
+        train_dataset = UnsupDataset(mode='train', config=config)
+        #test_dataset = UnsupDataset(mode='test', config=config)
+    
+    else:
+        train_dataset = SupervisedDataset(mode='train', config=config)
+        #test_dataset = SupervisedDataset(mode='test', config=config)
     
     # random_split
-    valid_size = int(len(train_dataset)*config['train']['valid_ratio'])
+    valid_size = int(len(train_dataset) * config['train']['valid_ratio'])
     train_dataset, valid_dataset = random_split(train_dataset, [len(train_dataset)-valid_size, valid_size])
     
     train_loader = DataLoader(train_dataset, batch_size=config['train']['batch_size'], shuffle=True, num_workers=config['train']['num_workers'], pin_memory=True)

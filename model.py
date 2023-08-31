@@ -31,12 +31,15 @@ class Fin_SimCSE(pl.LightningModule):
         self.model.resize_token_embeddings(len(self.tokenizer))
         self.linear = nn.Linear(config['transformer']['hidden_size'], config['transformer']['hidden_size'])
         self.activation = nn.Tanh()
-        
         self.lr = config['train']['learning_rate']
+        
         # todo: for scheduler
         self.total_steps =  math.ceil(length_of_dataset / (config['train']['batch_size'] * config['train']['gpu_counts'] )) * config['train']['epochs']
         print(self.total_steps)
         self.warmup_steps = config['train']['warmup_steps']
+        
+        self.supervision:bool = config['train']['supervision']
+        
         self._cuda = config['train']['device']
 
     def configure_optimizers(self):
@@ -62,19 +65,44 @@ class Fin_SimCSE(pl.LightningModule):
         return emb
     
     def forward(self, **inputs):
-        emb1 = self.get_emb(**inputs) # (batch_size, hidden_size)
-        emb2 = self.get_emb(**inputs) # (batch_size, hidden_size)
         
-        emb1 = emb1.unsqueeze(1) # (batch_size, 1, hidden_size)
-        emb2 = emb2.unsqueeze(0) # (1, batch_size, hidden_size)
+        if self.supervision == False:
+            #* Unsupervised SimCSE
+            emb1 = self.get_emb(**inputs) # (batch_size, hidden_size)
+            emb2 = self.get_emb(**inputs) # (batch_size, hidden_size)
+            
+            emb1 = emb1.unsqueeze(1) # (batch_size, 1, hidden_size)
+            emb2 = emb2.unsqueeze(0) # (1, batch_size, hidden_size)
+            
+            sim_matrix = F.cosine_similarity(emb1, emb2, dim=-1) # (batch_size, batch_size)
+            sim_matrix = sim_matrix / self.config['train']['temperature']
+            
+            labels = torch.arange(sim_matrix.size(0)).long().to(self._cuda)
+            loss = F.cross_entropy(sim_matrix, labels)
+            
+            return loss
         
-        sim_matrix = F.cosine_similarity(emb1, emb2, dim=-1) # (batch_size, batch_size)
-        sim_matrix = sim_matrix / self.config['train']['temperature']
-        
-        labels = torch.arange(sim_matrix.size(0)).long().to(self._cuda)
-        loss = F.cross_entropy(sim_matrix, labels)
-        
-        return loss
+        else:
+            #* Supervised SimCSE
+            anchor , positive, negative = inputs['anchor'], inputs['positive'], inputs['negative']
+            anchor_emb = self.get_emb(**anchor)
+            positive_emb = self.get_emb(**positive)
+            negative_emb = self.get_emb(**negative)
+            
+            anchor_emb = anchor_emb.unsqueeze(1)
+            positive_emb = positive_emb.unsqueeze(0)
+            negative_emb = negative_emb.unsqueeze(0)
+            
+            positive_sim = F.cosine_similarity(anchor_emb, positive_emb, dim=-1) / self.config['train']['temperature'] # (batch_size, batch_size)
+            negative_sim = F.cosine_similarity(anchor_emb, negative_emb, dim=-1) / self.config['train']['temperature'] # (batch_size, batch_size)
+            cos_sim = torch.cat([positive_sim, negative_sim], dim=1) # (batch_size, 2*batch_size)
+            
+            # in batch negative & supervised
+            labels = torch.arange(cos_sim.size(0)).long().to(self._cuda) # (batch_size)
+            loss = F.cross_entropy(cos_sim, labels)
+            
+            return loss
+            
     
     # ! Caution: NAMES
     def training_step(self, batch, batch_idx):

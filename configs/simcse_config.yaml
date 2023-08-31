@@ -22,3 +22,4 @@ train:
   valid_ratio: 0.2
   gpu_counts: 4
   seed : 42
+  supervision: False
